@@ -8,6 +8,11 @@ def getPureFileNameWithOutExt(fileName):
     ret = os.path.splitext(tmpLastPart)[0]
     return ret
 
+def getPureFileName(fileName):
+    tmpLastPart = os.path.split(fileName)[1]
+    ret = tmpLastPart
+    return ret
+
 
 def listDir(pathWithPattern):
     return glob.glob(pathWithPattern)

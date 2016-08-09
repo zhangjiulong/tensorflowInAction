@@ -306,15 +306,49 @@ class Td2TedliumFormat(BaseFormatConvertor):
             f.close()
         for key in notionDic:
             print key
-                
+
+    def replaceLabels(self, inStmDir, outStmDir):
+        inStmList = listDirWithPattern(inStmDir, '.*stm$')
+        fileReadNum = 0
+
+        for item in inStmList:
+            fileReadNum = fileReadNum + 1
+            if fileReadNum % 100 == 0:
+                print ' %d files has been processed.' %(fileReadNum)
+            
+            f = codecs.open(item, 'r', 'utf-8')
+            pureFileName = getPureFileName(item)
+            fout = codecs.open(os.path.join(outStmDir, pureFileName), 'w', 'utf-8')
+            for line in f:
+                line = line.strip()
+                line = line.replace('/noise', '/noise ')
+                line = line.replace('/sil', '/sil ')
+                line = line.replace('/mix', '/mix ')
+                line = line.replace('/nps', '/nps ')
+                line = line.replace('/non', '/non ')
+                line = line.replace('/sil', '/sil ')
+
+                line = line.replace('/n:lipsmack', '/n:lipsmack ')
+                line = line.replace('/n:laughter', '/n:laughter ')
+                line = line.replace('/n:cough', '/n:cough ')
+                line = line.replace('/n:sneeze', '/n:sneeze ')
+                line = line.replace('/n:throat-clear', '/n:throat-clear ')
+                line = re.sub(r'[ ]+', ' ', line)
+                line = line.strip()
+                fout.write(line + '\n')
+
+            f.close()
+            fout.close()
         
 if __name__ == '__main__':
-    td2TedliumFormat = Td2TedliumFormat('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/txt', '/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm')
+    td2TedliumFormat = Td2TedliumFormat('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/txt', '/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm2')
     #td2TedliumFormat.checkDir('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/txt')
     #td2TedliumFormat.checkBody('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/txt/1500159.txt')
     
     #td2TedliumFormat.convert()
-    td2TedliumFormat.collectSpecialNotions('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg')
+    #td2TedliumFormat.collectSpecialNotions('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg')
+    #td2TedliumFormat.collectSpecialNotions('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabelAlone2')
+    td2TedliumFormat.replaceLabels("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg1", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabelAlone2")
     #fileName = '/home/zhangjl/dataCenter/asr/td/vx/1/0924159.txt'
     #td2TedliumFormat.checkFileHeaders(fileName)
 
