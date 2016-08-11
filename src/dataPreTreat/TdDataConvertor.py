@@ -4,11 +4,12 @@ import re
 import shutil
 import sys
 import imp
-#import jieba
+import jieba
 import string
 imp.reload(sys)
 from fileTool import *
 from BaseFormatConvertor import BaseFormatConvertor
+from stmTool import *
 from paAsrTools import * 
 import codecs
 #sys.setdefaultencoding('utf-8')
@@ -339,6 +340,132 @@ class Td2TedliumFormat(BaseFormatConvertor):
 
             f.close()
             fout.close()
+
+    def clearUnUsualEng(self, inStmDir, outStmDir):
+        inStmList = listDirWithPattern(inStmDir, '.*stm$')
+        fileReadNum = 0
+        pattern = re.compile('.*[a-zA-Z0-9].*')
+        fDel = os.path.join(outStmDir, 'lineDeled.txt')
+        fDelPtr = codecs.open(fDel, 'w', 'utf-8')
+
+        for item in inStmList:
+            fileReadNum = fileReadNum + 1
+            if fileReadNum % 100 == 0:
+                print ' %d files has been processed.' %(fileReadNum)
+            
+            pureFileName = getPureFileName(item)
+            outfName = os.path.join(outStmDir, pureFileName)
+            fout = codecs.open(outfName, 'w', 'utf-8')
+            f = codecs.open(item, 'r', 'utf-8')
+            for line in f:
+                line = line.strip()
+                if len(line) <= 0:
+                    continue
+
+                status, pre, pst = splitStmTxt(line)
+                pst2Save = pst
+                pst2Save = pst2Save.upper()
+                if not status:
+                    print 'format error line ' + line
+                    continue
+
+                pst2Save = pst
+                pst2Save = pst2Save.upper()
+                
+                pst = pst.upper()
+                pst = pst.replace('{NOISE}', '')
+                pst = pst.replace('<SIL>', '')
+                pst = pst.replace('{COUGH}', '')
+                pst = pst.replace('QQ', '')
+                pst = pst.replace('WEIXIN', '')
+                pst = pst.replace('MAC', '')
+                pst = pst.replace('PLUS', '')
+                pst = pst.replace('IPHONE', '')
+                pst = pst.replace('IPAD', '')
+                pst = pst.replace('APPLE', '')
+                pst = pst.replace('OK', '')
+
+                match = pattern.match(pst)
+                if match:
+                    fDelPtr.write(line + '\n')
+                else:
+                    fout.write(pre + ' ' + pst2Save + '\n')
+
+            f.close()
+            fout.close()
+        fDelPtr.close()
+
+    def segStm(self, inStmDir, outStmDir):
+        inStmList = listDirWithPattern(inStmDir, '.*stm$')
+        fileReadNum = 0
+        jieba.load_userdict('userdic.txt')
+        import jieba.posseg as pseg
+
+        for item in inStmList:
+            fileReadNum = fileReadNum + 1
+            if fileReadNum % 100 == 0:
+                print ' %d files has been processed.' %(fileReadNum)
+            
+            pureFileName = getPureFileName(item)
+            outfName = os.path.join(outStmDir, pureFileName)
+            fout = codecs.open(outfName, 'w', 'utf-8')
+            f = codecs.open(item, 'r', 'utf-8')
+            for line in f:
+                line = line.strip()
+                if len(line) <= 0:
+                    continue
+
+                status, pre, pst = splitStmTxt(line)
+
+                if not status:
+                    print 'format error line ' + line
+                    continue
+
+                segList = jieba.cut(pst)
+                txt = ''
+                #for word, flag in segList:
+                #    txt = txt +  word + ' '
+                #txt = txt.strip()
+                txt = ' '.join(segList)
+                txt = txt.replace('{ NOISE }', '{NOISE}')
+                txt = txt.replace('{ COUGH }', '{COUGH}')
+                txt = txt.replace('< sil >', '<sil>')
+                fout.write(pre + ' ' + txt + '\n')
+
+            f.close()
+            fout.close()
+
+    def clearNoise(self, inStmDir, outStmDir):
+        inStmList = listDirWithPattern(inStmDir, '.*stm$')
+        fileReadNum = 0
+        outfName = os.path.join(outStmDir, 'clear4LM.txt')
+        fout = codecs.open(outfName, 'w', 'utf-8')
+
+        for item in inStmList:
+            fileReadNum = fileReadNum + 1
+            if fileReadNum % 100 == 0:
+                print ' %d files has been processed.' %(fileReadNum)
+            
+            f = codecs.open(item, 'r', 'utf-8')
+            for line in f:
+                line = line.strip()
+                if len(line) <= 0:
+                    continue
+
+                status, pre, pst = splitStmTxt(line)
+
+                if not status:
+                    print 'format error line ' + line
+                    continue
+
+                txt = pst
+                txt = txt.replace('{NOISE}', '')
+                txt = txt.replace('{COUGH}', '')
+                txt = txt.replace('<sil>', '')
+                fout.write(txt + ' </s>\n')
+
+            f.close()
+        fout.close()
         
 if __name__ == '__main__':
     td2TedliumFormat = Td2TedliumFormat('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/txt', '/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm2')
@@ -348,7 +475,10 @@ if __name__ == '__main__':
     #td2TedliumFormat.convert()
     #td2TedliumFormat.collectSpecialNotions('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg')
     #td2TedliumFormat.collectSpecialNotions('/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabelAlone2')
-    td2TedliumFormat.replaceLabels("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg1", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabelAlone2")
+    #td2TedliumFormat.replaceLabels("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmNoSeg1", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabelAlone2")
+    #td2TedliumFormat.clearUnUsualEng("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmLabeReplaced3", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmClearUnUsualEng4")
+    #td2TedliumFormat.segStm("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmClearUnUsualEng4", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmSeg5")
+    td2TedliumFormat.clearNoise("/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmSeg5", "/home/zhangjl/asrDataCenter/dataCenter/asr/td/vx/stm/stmClearNoiseLabel6")
     #fileName = '/home/zhangjl/dataCenter/asr/td/vx/1/0924159.txt'
     #td2TedliumFormat.checkFileHeaders(fileName)
 
