@@ -16,6 +16,9 @@ def arkTxt2Csv(inFile, outFile):
         lineNum = lineNum + 1
         line = line.strip()
         
+        if lineNum % 1000 == 0:
+            print 'processing line ' + str(lineNum)
+
         # 1. del empty line
         if len(line) <= 0: # del if line is empty
             logging.error('empty line on line ' + str(lineNum))
@@ -50,8 +53,11 @@ def labelTxt2Csv(inFile, outFile):
     
     for line in inFilePtr:
         lineNum = lineNum + 1
+
+        if lineNum % 1000 == 0:
+            print 'processing line ' + str(lineNum)
+
         line = line.strip()
-        
         splits = line.split(' ', 1)
         labelStr = splits[1].strip()
         labelStr = labelStr.replace(' ', ',')
@@ -59,6 +65,9 @@ def labelTxt2Csv(inFile, outFile):
         
         
 if __name__ == '__main__':
-    arkFile = './ark.csv'
-    arkOutFile = './ark.out.csv'
+    arkFile = '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata_txt/train2.ark'
+    arkOutFile = './train2.csv'
     arkTxt2Csv(arkFile, arkOutFile)
+    labelFile = './label.ark'
+    outFile = './label.csv'
+    #labelTxt2Csv(labelFile, outFile)
