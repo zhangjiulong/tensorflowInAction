@@ -65,9 +65,9 @@ def labelTxt2Csv(inFile, outFile):
         
         
 if __name__ == '__main__':
-    arkFile = '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata_txt/train2.ark'
-    arkOutFile = './train2.csv'
-    arkTxt2Csv(arkFile, arkOutFile)
-    labelFile = './label.ark'
-    outFile = './label.csv'
-    #labelTxt2Csv(labelFile, outFile)
+    arkFile = '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata_txt/cv2.ark'
+    arkOutFile = './cv2.csv'
+    #arkTxt2Csv(arkFile, arkOutFile)
+    labelFile = '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata_txt/labels.cv'
+    outFile = './label_cv.csv'
+    labelTxt2Csv(labelFile, outFile)

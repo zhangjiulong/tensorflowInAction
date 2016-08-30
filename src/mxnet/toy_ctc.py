@@ -78,7 +78,6 @@ class DataIter(mx.io.DataIter):
             data_names = ['data'] + init_state_names
             label_names = ['label']
             
-            
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
             yield data_batch
 
