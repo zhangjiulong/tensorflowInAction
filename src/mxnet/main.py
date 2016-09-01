@@ -6,9 +6,10 @@ import mxnet as mx
 from lstm import lstm_unroll
 import logging
 
+from bucket_csv import BucketSentenceIter
 from config_util import parse_args, parse_contexts, get_checkpoint_path
-BATCH_SIZE = 1
-SEQ_LENGTH = 80
+
+BATCH_SIZE = 3
 
 def Accuracy(label, pred):
 
@@ -17,7 +18,7 @@ def Accuracy(label, pred):
     for i in range(BATCH_SIZE):
         l = label[i]
         p = []
-        for k in range(SEQ_LENGTH):
+        for k in range(len(label)):
             p.append(np.argmax(pred[k * BATCH_SIZE + i]))
         p = ctc_label(p)
         if len(p) == len(l):
@@ -55,11 +56,9 @@ if __name__ == '__main__':
     train_labels = config.get('data', 'train_labels')
     dev_feats = config.get('data', 'dev_feats')
     dev_labels = config.get('data', 'dev_labels')
-    feat_dim = config.getint('data', 'xdim')
-    label_dim = config.getint('data', 'ydim')
     
-    
-    contexts = parse_contexts(args)
+    #contexts = parse_contexts(args)
+    contexts = [mx.context.gpu(i) for i in range(1)]
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(message)s')
 
@@ -72,15 +71,20 @@ if __name__ == '__main__':
     init_c = [('l%d_init_c'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_states = init_c + init_h
-
+    
+    '''
     data_train = mx.io.CSVIter(data_csv=train_feats, data_shape=(2, feat_dim),
                                label_csv=train_labels, label_shape = (3, 1),
                                batch_size=batch_size)
     data_dev = mx.io.CSVIter(data_csv = dev_feats, data_shape=(2, feat_dim),
                              label_csv=dev_labels, label_shape = (3, 1),
                              batch_size=batch_size)
+    '''
 
-    symbol = sym_gen(200000/120 + 1)
+    data_train = BucketSentenceIter(train_feats, train_labels, batch_size, init_states)
+    data_dev = BucketSentenceIter(dev_feats, dev_labels, batch_size, init_states)
+    
+    symbol = sym_gen
 
     model = mx.model.FeedForward(ctx=contexts,
                                  symbol=symbol,
