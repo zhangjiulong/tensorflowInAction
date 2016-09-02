@@ -11,6 +11,18 @@ from config_util import parse_args, parse_contexts, get_checkpoint_path
 
 BATCH_SIZE = 3
 
+def ctc_label(p):
+    ret = []
+    p1 = [0] + p
+    for i in range(len(p)):
+        c1 = p1[i]
+        c2 = p1[i+1]
+        if c2 == 0 or c2 == c1:
+            continue
+        ret.append(c2)
+    return ret
+
+
 def Accuracy(label, pred):
 
     hit = 0.
@@ -65,7 +77,7 @@ if __name__ == '__main__':
     def sym_gen(seq_len):
         return lstm_unroll(num_lstm_layer, seq_len,
                            num_hidden=num_hidden,
-                           num_label = label_dim)
+                           num_label = 88)
     
 
     init_c = [('l%d_init_c'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
@@ -101,8 +113,8 @@ if __name__ == '__main__':
     print 'begin fit'
 
     model.fit(X=data_train, eval_data=data_dev,
-              eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
+              eval_metric = mx.metric.np(Accuracy))
+#              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
 
     #model.save("asr001")
     

@@ -53,7 +53,7 @@ class BucketSentenceIter(mx.io.DataIter):
         self.init_state_arrays = [mx.nd.zeros(x[1]) for x in init_states]
 
         self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
-        self.provide_label = [('softmax_label', (self.batch_size, self.default_bucket_key))]
+        self.provide_label = [('label', (self.batch_size, self.default_bucket_key))]
 
 
     def __iter__(self):
@@ -136,7 +136,7 @@ class BucketSentenceIter(mx.io.DataIter):
 
             # 6. fill label for iterator
             label_all = [mx.nd.array(label)]
-            label_names = ['softmax_label']
+            label_names = ['label']
 
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all,
                                      self.buckets[i_bucket])

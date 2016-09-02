@@ -55,9 +55,11 @@ class DataIter(mx.io.DataIter):
         self.count = count
         self.num_label = num_label
         self.init_states = init_states
+
         ## 
         print 'init state is %s'%(init_states)
         self.init_state_arrays = [mx.nd.zeros(x[1]) for x in init_states]
+
         ##
         print 'init_state_arrays is %s'%(self.init_state_arrays)
         self.provide_data = [('data', (batch_size, 10 * 80))] + init_states
