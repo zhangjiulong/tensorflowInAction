@@ -10,7 +10,7 @@ import logging
 import codecs 
 from lstm import lstm_unroll
 from config_util import parse_args, parse_contexts, get_checkpoint_path
-BATCH_SIZE = 5
+BATCH_SIZE = 10
 SEQ_LENGTH = 5
 
 class SimpleBatch(object):
@@ -33,7 +33,7 @@ class SimpleBatch(object):
 
 class FixLenCsvIter(mx.io.DataIter):
     def __init__(self, featFile, labelFile, batch_size,
-                 init_states, seq_len = 2000, frame_dim = 120, label_num = 88, data_name='data', label_name='label'):
+                 init_states, seq_len = 2000, frame_dim = 120, label_num = 2000, data_name='data', label_name='label'):
         super(FixLenCsvIter, self).__init__()
 
         # pre-allocate with the largest bucket for better memory sharing
@@ -51,16 +51,16 @@ class FixLenCsvIter(mx.io.DataIter):
         self.frame_dim = frame_dim
         self.label_num = label_num
 
+
         #self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
         #self.provide_label = [('label', (self.batch_size, self.default_bucket_key))]
 
         self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
         self.provide_label = [('label', (self.batch_size, self.label_num))]
-
-
+        
 
     def __iter__(self):
-
+        init_state_names = [x[0] for x in self.init_states]
         featLineNum = 0
         labelLineNum = 0
         while True:
@@ -109,10 +109,6 @@ class FixLenCsvIter(mx.io.DataIter):
                 # 2. str to array
                 splits = line.split(',')
                 lenSplits = len(splits)
-                assert(lenSplits % self.frame_dim == 0)
-
-                if labelMaxDimeLen < lenSplits:
-                    labelMaxDimeLen = lenSplits
 
                 item = [float(n) for n in splits]
                 labelBatchItems.append(item)
@@ -125,13 +121,13 @@ class FixLenCsvIter(mx.io.DataIter):
             # 3. feature array to np.array
             data = np.zeros((self.batch_size, self.frame_dim * self.seq_len))
             
-            for i in range(len(self.batch_size)):
+            for i in range(line4BatchRead):
                 data[i][:len(featBatchItems[i])] = featBatchItems[i]
 
             # 4. label array to np.array
-            label = np.zeros((self.batch_size, labelMaxDimeLen + 2))
-            for i in range(len(self.batch_size)):
-                label[i][1:len(labelBatchItems[i])] = labelBatchItems[i]
+            label = np.zeros((self.batch_size, self.label_num))
+            for i in range(line4BatchRead):
+                label[i][:len(labelBatchItems[i])] = labelBatchItems[i]
 
             
             # 5. fill data for iterator
@@ -200,6 +196,8 @@ if __name__ == '__main__':
     num_lstm_layer = config.getint('arch', 'num_lstm_layer')
     
     # parameters for train
+    recordsNum4Train = config.getint('train', 'recordsNum4Train')
+    recordsNum4Test = config.getint('train', 'recordsNum4Test')
     batch_size = config.getint('train', 'batch_size')
     num_epoch = config.getint('train', 'num_epoch')
     learning_rate = config.getfloat('train', 'learning_rate')
@@ -210,9 +208,10 @@ if __name__ == '__main__':
     train_labels = config.get('data', 'train_labels')
     dev_feats = config.get('data', 'dev_feats')
     dev_labels = config.get('data', 'dev_labels')
-    label_num = config.getint('data', 'label_num')
     seq_len = config.getint('data', 'seq_len')
     frame_dim = config.getint('data', 'frame_dim')
+    label_num = config.getint('data', 'label_num')
+    #label_num = seq_len
     
     BATCH_SIZE = batch_size
     SEQ_LENGTH = seq_len
@@ -233,10 +232,8 @@ if __name__ == '__main__':
     init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_states = init_c + init_h
 
-    #data_train = DataIter(100000, BATCH_SIZE, num_label, init_states)
-    #data_val = DataIter(1000, BATCH_SIZE, num_label, init_states)
-    data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states)
-    data_val = FixLenCsvIter(train_feats, train_labels, batch_size, init_states)
+    data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read)
+    data_val = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read)
 
     symbol = sym_gen(seq_len)
 
@@ -256,6 +253,6 @@ if __name__ == '__main__':
 
     model.fit(X=data_train, eval_data=data_val,
               eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
+              batch_end_callback=mx.callback.Speedometer(batch_size, 10),)
 
     model.save("ocr")
