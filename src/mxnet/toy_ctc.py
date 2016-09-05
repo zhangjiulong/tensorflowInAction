@@ -31,9 +31,9 @@ def gen_feature(n):
     return ret
 
 def gen_rand():
-    num = random.randint(0, 9999)
+    num = random.randint(0, 99999)
     buf = str(num)
-    while len(buf) < 4:
+    while len(buf) < 5:
         buf = "0" + buf
     ret = np.array([])
     for i in range(80):
@@ -47,7 +47,6 @@ def get_label(buf):
         ret[i] = 1 + int(buf[i])
     return ret
 
-#    data_train = DataIter(100000, BATCH_SIZE, num_label, init_states)
 class DataIter(mx.io.DataIter):
     def __init__(self, count, batch_size, num_label, init_states):
         super(DataIter, self).__init__()
@@ -55,13 +54,7 @@ class DataIter(mx.io.DataIter):
         self.count = count
         self.num_label = num_label
         self.init_states = init_states
-
-        ## 
-        print 'init state is %s'%(init_states)
         self.init_state_arrays = [mx.nd.zeros(x[1]) for x in init_states]
-
-        ##
-        print 'init_state_arrays is %s'%(self.init_state_arrays)
         self.provide_data = [('data', (batch_size, 10 * 80))] + init_states
         self.provide_label = [('label', (self.batch_size, 4))]
 
@@ -79,6 +72,7 @@ class DataIter(mx.io.DataIter):
             label_all = [mx.nd.array(label)]
             data_names = ['data'] + init_state_names
             label_names = ['label']
+            
             
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
             yield data_batch
@@ -125,14 +119,14 @@ def Accuracy(label, pred):
 
 if __name__ == '__main__':
     num_hidden = 100
-    num_lstm_layer = 3
+    num_lstm_layer = 1
 
     num_epoch = 10
     learning_rate = 0.001
     momentum = 0.9
     num_label = 4
 
-    contexts = [mx.context.gpu(0),]
+    contexts = [mx.context.gpu(0)]
 
     def sym_gen(seq_len):
         return lstm_unroll(num_lstm_layer, seq_len,

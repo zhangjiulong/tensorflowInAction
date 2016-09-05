@@ -6,10 +6,12 @@ import sys
 import numpy as np
 import mxnet as mx
 import random
+import logging
+import codecs 
 from lstm import lstm_unroll
-
-BATCH_SIZE = 32
-SEQ_LENGTH = 800
+from config_util import parse_args, parse_contexts, get_checkpoint_path
+BATCH_SIZE = 5
+SEQ_LENGTH = 5
 
 class SimpleBatch(object):
     def __init__(self, data_names, data, label_names, label):
@@ -29,57 +31,121 @@ class SimpleBatch(object):
     def provide_label(self):
         return [(n, x.shape) for n, x in zip(self.label_names, self.label)]
 
-def gen_feature(n):
-    ret = np.zeros(10)
-    ret[n] = 1
-    return ret
+class FixLenCsvIter(mx.io.DataIter):
+    def __init__(self, featFile, labelFile, batch_size,
+                 init_states, seq_len = 2000, frame_dim = 120, label_num = 88, data_name='data', label_name='label'):
+        super(FixLenCsvIter, self).__init__()
 
-def gen_rand():
-    num = random.randint(0, 9999)
-    buf = str(num)
-    while len(buf) < 4:
-        buf = "0" + buf
-    ret = np.array([])
-    for i in range(SEQ_LENGTH):
-        c = int(buf[i / 20])
-        ret = np.concatenate([ret, gen_feature(c)])
-    return buf, ret
+        # pre-allocate with the largest bucket for better memory sharing
+        self.featFile = featFile
+        self.labelFile = labelFile
 
-def get_label(buf):
-    ret = np.zeros(4)
-    for i in range(4):
-        ret[i] = 1 + int(buf[i])
-    return ret
+        self.featFilePtr = codecs.open(self.featFile, 'r', 'utf-8')
+        self.labelFilePtr = codecs.open(self.labelFile, 'r', 'utf-8')
 
-class DataIter(mx.io.DataIter):
-    def __init__(self, count, batch_size, num_label, init_states):
-        super(DataIter, self).__init__()
         self.batch_size = batch_size
-        self.count = count
-        self.num_label = num_label
+
         self.init_states = init_states
         self.init_state_arrays = [mx.nd.zeros(x[1]) for x in init_states]
-        self.provide_data = [('data', (batch_size, 10 * SEQ_LENGTH))] + init_states
-        self.provide_label = [('label', (self.batch_size, 4))]
+        self.seq_len = seq_len
+        self.frame_dim = frame_dim
+        self.label_num = label_num
+
+        #self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
+        #self.provide_label = [('label', (self.batch_size, self.default_bucket_key))]
+
+        self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
+        self.provide_label = [('label', (self.batch_size, self.label_num))]
+
+
 
     def __iter__(self):
-        init_state_names = [x[0] for x in self.init_states]
-        for k in range(self.count):
-            data = []
-            label = []
-            for i in range(self.batch_size):
-                num, img = gen_rand()
-                data.append(img)
-                label.append(get_label(num))
+
+        featLineNum = 0
+        labelLineNum = 0
+        while True:
+            line4BatchRead = 0
+            featMaxDimLen = -1
+            labelMaxDimeLen = -1
+            featBatchItems = []
+            labelBatchItems = []
+
+            # 1. read batch size items of feature
+            for line in self.featFilePtr:
+                featLineNum = featLineNum + 1
+
+                line = line.strip()
                 
-            data_all = [mx.nd.array(data)] + self.init_state_arrays
-            label_all = [mx.nd.array(label)]
+                # 1. check empty line
+                if len(line) <= 0:
+                    print 'empty line on %d'%(featLineNum)
+                    continue
+
+                # 2. str to array
+                splits = line.split(',')
+                lenSplits = len(splits)
+                assert(lenSplits % self.frame_dim == 0)
+
+                item = [float(n) for n in splits]
+                featBatchItems.append(item)
+                
+                # 3. judge uttrance read.
+                line4BatchRead = line4BatchRead + 1
+                if line4BatchRead >= self.batch_size:
+                    break
+            
+            line4BatchRead = 0
+            # 2. read batch size items of label
+            for line in self.labelFilePtr:
+                labelLineNum = labelLineNum + 1
+
+                line = line.strip()
+                
+                # 1. check empty line
+                if len(line) <= 0:
+                    print 'empty line on %d'%(labelLineNum)
+                    continue
+
+                # 2. str to array
+                splits = line.split(',')
+                lenSplits = len(splits)
+                assert(lenSplits % self.frame_dim == 0)
+
+                if labelMaxDimeLen < lenSplits:
+                    labelMaxDimeLen = lenSplits
+
+                item = [float(n) for n in splits]
+                labelBatchItems.append(item)
+
+                # 3. judge uttrance label read.                
+                line4BatchRead = line4BatchRead + 1
+                if line4BatchRead >= self.batch_size:
+                    break
+            
+            # 3. feature array to np.array
+            data = np.zeros((self.batch_size, self.frame_dim * self.seq_len))
+            
+            for i in range(len(self.batch_size)):
+                data[i][:len(featBatchItems[i])] = featBatchItems[i]
+
+            # 4. label array to np.array
+            label = np.zeros((self.batch_size, labelMaxDimeLen + 2))
+            for i in range(len(self.batch_size)):
+                label[i][1:len(labelBatchItems[i])] = labelBatchItems[i]
+
+            
+            # 5. fill data for iterator
+            data_all = [mx.nd.array(data)] + self.init_state_arrays    
             data_names = ['data'] + init_state_names
+
+            # 6. fill label for iterator
+            label_all = [mx.nd.array(label)]
             label_names = ['label']
-            
-            
+
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
+
             yield data_batch
+
 
     def reset(self):
         pass
@@ -100,6 +166,7 @@ def ctc_label(p):
 def Accuracy(label, pred):
     global BATCH_SIZE
     global SEQ_LENGTH
+
     hit = 0.
     total = 0.
     for i in range(BATCH_SIZE):
@@ -121,29 +188,57 @@ def Accuracy(label, pred):
 
 if __name__ == '__main__':
 
-    num_hidden = 100
-    num_lstm_layer = 1
+    args = parse_args()
+    config = args.config
+    # port = config.getint('server', 'listenPort')
+    #print 'port is %d'%(port)
+    config.write(sys.stdout)
+    
+    # parameters for arch
+    num_hidden = config.getint('arch', 'num_hidden')
+    num_hidden_proj = config.getint('arch', 'num_hidden_proj')
+    num_lstm_layer = config.getint('arch', 'num_lstm_layer')
+    
+    # parameters for train
+    batch_size = config.getint('train', 'batch_size')
+    num_epoch = config.getint('train', 'num_epoch')
+    learning_rate = config.getfloat('train', 'learning_rate')
+    momentum = config.getfloat('train', 'momentum')
 
-    num_epoch = 10
-    learning_rate = 0.001
-    momentum = 0.9
-    num_label = 4
+    # parameters for data
+    train_feats = config.get('data', 'train_feats')
+    train_labels = config.get('data', 'train_labels')
+    dev_feats = config.get('data', 'dev_feats')
+    dev_labels = config.get('data', 'dev_labels')
+    label_num = config.getint('data', 'label_num')
+    seq_len = config.getint('data', 'seq_len')
+    frame_dim = config.getint('data', 'frame_dim')
+    
+    BATCH_SIZE = batch_size
+    SEQ_LENGTH = seq_len
+    #contexts = parse_contexts(args)
+    contexts = [mx.context.gpu(i) for i in range(1)]
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(message)s')
+
 
     contexts = [mx.context.gpu(0)]
 
     def sym_gen(seq_len):
         return lstm_unroll(num_lstm_layer, seq_len,
                            num_hidden=num_hidden,
-                           num_label = num_label)
+                           num_label = label_num)
 
-    init_c = [('l%d_init_c'%l, (BATCH_SIZE, num_hidden)) for l in range(num_lstm_layer)]
-    init_h = [('l%d_init_h'%l, (BATCH_SIZE, num_hidden)) for l in range(num_lstm_layer)]
+    init_c = [('l%d_init_c'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
+    init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_states = init_c + init_h
 
-    data_train = DataIter(100000, BATCH_SIZE, num_label, init_states)
-    data_val = DataIter(1000, BATCH_SIZE, num_label, init_states)
+    #data_train = DataIter(100000, BATCH_SIZE, num_label, init_states)
+    #data_val = DataIter(1000, BATCH_SIZE, num_label, init_states)
+    data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states)
+    data_val = FixLenCsvIter(train_feats, train_labels, batch_size, init_states)
 
-    symbol = sym_gen(SEQ_LENGTH)
+    symbol = sym_gen(seq_len)
 
     model = mx.model.FeedForward(ctx=contexts,
                                  symbol=symbol,
@@ -161,6 +256,6 @@ if __name__ == '__main__':
 
     model.fit(X=data_train, eval_data=data_val,
               eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(BATCH_SIZE, 50),)
+              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
 
     model.save("ocr")
