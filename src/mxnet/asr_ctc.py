@@ -80,11 +80,10 @@ class FixLenCsvIter(mx.io.DataIter):
             labelMaxDimeLen = -1
             featBatchItems = []
             labelBatchItems = []
-            print 'batch begins'
+
             # 1. read batch size items of feature
             for line in self.featFilePtr:
                 featLineNum = featLineNum + 1
-
                 line = line.strip()
                 
                 # 1. check empty line
@@ -94,7 +93,6 @@ class FixLenCsvIter(mx.io.DataIter):
 
                 # 2. str to array
                 splits = line.split(',')
-                print splits
                 lenSplits = len(splits)
                 assert(lenSplits % self.frame_dim == 0)
 
