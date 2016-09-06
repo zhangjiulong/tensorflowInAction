@@ -1,7 +1,9 @@
 #coding=utf-8
 import os 
+import sys
 import glob
 import re
+import codecs
 
 def getPureFileNameWithOutExt(fileName):
     tmpLastPart = os.path.split(fileName)[1]
@@ -30,6 +32,21 @@ def transFileLower(inFile, outFile):
         of.write(line)
     of.flush()
     of.close()
+
+def getLineNum(fileName):
+
+    filePtr = open(fileName, 'rb')
+    count = 0
+
+    while True:
+        buffer = filePtr.read(81920 * 1024)
+        if not buffer:
+            break
+        count += buffer.count('\n')
+    filePtr.close()
+
+
+    return count
             
 def listDirWithPattern(dirStr, listPattern = '.*'):
 
@@ -62,4 +79,6 @@ def listDirWithPattern(dirStr, listPattern = '.*'):
     return ret
 
 if __name__ == '__main__':
-    print 'k'
+    file = '/home/zhangjl/aiGit/asr/src/mxnet/train2.csv'
+    lineNum = getLineNum(file)
+    print 'line num is %d' %(lineNum)

@@ -10,6 +10,7 @@ import logging
 import codecs 
 from lstm import lstm_unroll
 from config_util import parse_args, parse_contexts, get_checkpoint_path
+from fileTool import getLineNum
 BATCH_SIZE = 10
 SEQ_LENGTH = 5
 
@@ -33,7 +34,7 @@ class SimpleBatch(object):
 
 class FixLenCsvIter(mx.io.DataIter):
     def __init__(self, featFile, labelFile, batch_size,
-                 init_states, seq_len = 2000, frame_dim = 120, label_num = 2000, data_name='data', label_name='label'):
+                 init_states, seq_len = 2000, frame_dim = 120, label_num = 2000, data_name='data', label_name='label', recordsNum2Read):
         super(FixLenCsvIter, self).__init__()
 
         # pre-allocate with the largest bucket for better memory sharing
@@ -50,6 +51,11 @@ class FixLenCsvIter(mx.io.DataIter):
         self.seq_len = seq_len
         self.frame_dim = frame_dim
         self.label_num = label_num
+        if recordsNum2Read > 0:
+            self.recordsNum2Read = recordsNum2Read
+        else:
+            self.recordsNum2Read = getLineNum(featFile)
+        assert(self.recordsNum2Read > 0)
 
 
         #self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
