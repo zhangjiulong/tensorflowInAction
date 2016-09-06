@@ -65,8 +65,8 @@ class FixLenCsvIter(mx.io.DataIter):
         self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
         self.provide_label = [('label', (self.batch_size, self.label_num))]
     
-    def iter(self):
-        return self.__iter__()
+    #def iter(self):
+    #    return self.__iter__()
         
 
     def __iter__(self):
@@ -80,7 +80,7 @@ class FixLenCsvIter(mx.io.DataIter):
             labelMaxDimeLen = -1
             featBatchItems = []
             labelBatchItems = []
-
+            print 'batch begins'
             # 1. read batch size items of feature
             for line in self.featFilePtr:
                 featLineNum = featLineNum + 1
@@ -94,6 +94,7 @@ class FixLenCsvIter(mx.io.DataIter):
 
                 # 2. str to array
                 splits = line.split(',')
+                print splits
                 lenSplits = len(splits)
                 assert(lenSplits % self.frame_dim == 0)
 
@@ -155,7 +156,8 @@ class FixLenCsvIter(mx.io.DataIter):
 
 
     def reset(self):
-        pass
+        self.featFilePtr.seek(0, 0)
+        self.labelFilePtr.seek(0, 0)
 
 
 def ctc_label(p):
@@ -247,7 +249,7 @@ if __name__ == '__main__':
     init_states = init_c + init_h
 
     data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, trainRecords2Read)
-    data_val = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, testRecords2Read)
+    data_val = FixLenCsvIter(dev_feats, dev_labels, batch_size, init_states, seq_len, frame_dim, label_num, testRecords2Read)
 
     symbol = sym_gen(seq_len)
 
@@ -269,4 +271,4 @@ if __name__ == '__main__':
               eval_metric = mx.metric.np(Accuracy),
               batch_end_callback=mx.callback.Speedometer(batch_size, 10),)
 
-    model.save("ocr")
+    model.save("asr")
