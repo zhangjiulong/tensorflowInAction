@@ -74,6 +74,7 @@ class FixLenCsvIter(mx.io.DataIter):
         featLineNum = 0
         labelLineNum = 0
         recordsNumRead = 0
+        batch_index = 0
         while recordsNumRead < self.recordsNum2Read:
             line4BatchRead = 0
             featMaxDimLen = -1
@@ -125,6 +126,7 @@ class FixLenCsvIter(mx.io.DataIter):
 
                 # 3. judge uttrance label read.                
                 line4BatchRead = line4BatchRead + 1
+
                 if line4BatchRead >= self.batch_size:
                     break
             
@@ -148,6 +150,12 @@ class FixLenCsvIter(mx.io.DataIter):
             label_all = [mx.nd.array(label)]
             label_names = ['label']
             recordsNumRead = recordsNumRead + self.batch_size
+            batch_index = batch_index + 1
+            
+            # just for debug
+            if batch_index % 1000 == 0:
+                print 'batch index is %d'%(batch_index)
+                print 'line read is %d thredhold is %d'%(recordsNumRead, self.recordsNum2Read)
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
 
             yield data_batch
@@ -235,7 +243,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(message)s')
 
 
-    contexts = [mx.context.gpu(0)]
+    #contexts = [mx.context.gpu(0), mx.context.gpu(1)]
+    contexts = parse_contexts(args)
 
     def sym_gen(seq_len):
         return lstm_unroll(num_lstm_layer, seq_len,
@@ -246,8 +255,8 @@ if __name__ == '__main__':
     init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_states = init_c + init_h
 
-    data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, trainRecords2Read)
-    data_val = FixLenCsvIter(dev_feats, dev_labels, batch_size, init_states, seq_len, frame_dim, label_num, testRecords2Read)
+    data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read = trainRecords2Read)
+    data_val = FixLenCsvIter(dev_feats, dev_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read = testRecords2Read)
 
     symbol = sym_gen(seq_len)
 
@@ -267,6 +276,6 @@ if __name__ == '__main__':
 
     model.fit(X=data_train, eval_data=data_val,
               eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(batch_size, 10),)
+              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
 
     model.save("asr")
