@@ -13,6 +13,7 @@ from config_util import parse_args, parse_contexts, get_checkpoint_path
 from fileTool import getLineNum
 BATCH_SIZE = 3
 SEQ_LENGTH = 5
+LABEL_SIZE = 11
 
 class SimpleBatch(object):
     def __init__(self, data_names, data, label_names, label):
@@ -65,9 +66,6 @@ class FixLenCsvIter(mx.io.DataIter):
         self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
         self.provide_label = [('label', (self.batch_size, self.label_num))]
     
-    #def iter(self):
-    #    return self.__iter__()
-        
 
     def __iter__(self):
         init_state_names = [x[0] for x in self.init_states]
@@ -221,6 +219,7 @@ if __name__ == '__main__':
     num_epoch = config.getint('train', 'num_epoch')
     learning_rate = config.getfloat('train', 'learning_rate')
     momentum = config.getfloat('train', 'momentum')
+    prefix = config.get('train', 'prefix')
 
     # parameters for data
     train_feats = config.get('data', 'train_feats')
@@ -230,6 +229,7 @@ if __name__ == '__main__':
     seq_len = config.getint('data', 'seq_len')
     frame_dim = config.getint('data', 'frame_dim')
     label_num = config.getint('data', 'label_num')
+    label_size = config.getint('data', 'label_size')
     trainRecords2Read = config.getint('train', 'recordsNum4Train')
     testRecords2Read = config.getint('train', 'recordsNum4Test')
     
@@ -237,6 +237,7 @@ if __name__ == '__main__':
     
     BATCH_SIZE = batch_size
     SEQ_LENGTH = seq_len
+    LABEL_SIZE = label_size
     contexts = parse_contexts(args)
     #contexts = [mx.context.gpu(i) for i in range(1)]
     assert(BATCH_SIZE % len(contexts) == 0)
@@ -278,6 +279,6 @@ if __name__ == '__main__':
 
     model.fit(X=data_train, eval_data=data_val,
               eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(batch_size, 50),)
+              batch_end_callback=mx.callback.Speedometer(batch_size, 50),epoch_end_callback = mx.callback.do_checkpoint(prefix))
 
-    model.save("asr")
+    model.save(prefix)
