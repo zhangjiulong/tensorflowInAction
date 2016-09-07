@@ -184,11 +184,11 @@ def Accuracy(label, pred):
 
     hit = 0.
     total = 0.
-    for i in range(BATCH_SIZE / 2):
+    for i in range(BATCH_SIZE):
         l = label[i]
         p = []
         for k in range(SEQ_LENGTH):
-            p.append(np.argmax(pred[k * BATCH_SIZE / 2 + i]))
+            p.append(np.argmax(pred[k * BATCH_SIZE + i]))
         p = ctc_label(p)
         if len(p) == len(l):
             match = True
@@ -237,8 +237,10 @@ if __name__ == '__main__':
     
     BATCH_SIZE = batch_size
     SEQ_LENGTH = seq_len
-    #contexts = parse_contexts(args)
-    contexts = [mx.context.gpu(i) for i in range(1)]
+    contexts = parse_contexts(args)
+    #contexts = [mx.context.gpu(i) for i in range(1)]
+    assert(BATCH_SIZE % len(contexts) == 0)
+    BATCH_SIZE = BATCH_SIZE / len(contexts)
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(message)s')
 
