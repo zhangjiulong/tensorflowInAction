@@ -184,11 +184,11 @@ def Accuracy(label, pred):
 
     hit = 0.
     total = 0.
-    for i in range(BATCH_SIZE):
+    for i in range(BATCH_SIZE / 2):
         l = label[i]
         p = []
         for k in range(SEQ_LENGTH):
-            p.append(np.argmax(pred[k * BATCH_SIZE + i]))
+            p.append(np.argmax(pred[k * BATCH_SIZE / 2 + i]))
         p = ctc_label(p)
         if len(p) == len(l):
             match = True
