@@ -46,7 +46,7 @@ def lstm(num_hidden, indata, prev_state, param, seqidx, layeridx, dropout=0.):
 # I think the existing data-parallelization code need some modification
 # to allow this situation to work properly
 def lstm_unroll(num_lstm_layer, seq_len,
-                num_hidden, num_label):
+                num_hidden, num_label, label_size=11):
     param_cells = []
     last_states = []
     for i in range(num_lstm_layer):
@@ -77,10 +77,11 @@ def lstm_unroll(num_lstm_layer, seq_len,
         hidden_all.append(hidden)
 
     hidden_concat = mx.sym.Concat(*hidden_all, dim=0)
-    pred = mx.sym.FullyConnected(data=hidden_concat, num_hidden=11)
+    pred = mx.sym.FullyConnected(data=hidden_concat, num_hidden=label_size)
 
     label = mx.sym.Reshape(data=label, shape=(-1,))
     label = mx.sym.Cast(data = label, dtype = 'int32')
+
     sm = mx.sym.WarpCTC(data=pred, label=label, label_length = num_label, input_length = seq_len)
     return sm
 
