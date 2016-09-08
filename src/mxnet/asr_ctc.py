@@ -152,10 +152,6 @@ class FixLenCsvIter(mx.io.DataIter):
             recordsNumRead = recordsNumRead + self.batch_size
             batch_index = batch_index + 1
             
-            # just for debug
-            if batch_index % 1000 == 0:
-                print 'batch index is %d'%(batch_index)
-                print 'line read is %d thredhold is %d'%(recordsNumRead, self.recordsNum2Read)
             data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
 
             yield data_batch
