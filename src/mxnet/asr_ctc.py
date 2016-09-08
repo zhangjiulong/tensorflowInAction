@@ -11,6 +11,7 @@ import codecs
 from lstm import lstm_unroll
 from config_util import parse_args, parse_contexts, get_checkpoint_path
 from fileTool import getLineNum
+import Levenshtein
 BATCH_SIZE = 3
 SEQ_LENGTH = 5
 LABEL_SIZE = 11
@@ -173,29 +174,43 @@ def ctc_label(p):
         ret.append(c2)
     return ret
         
+def ctc_label_str(p):
+    ret = ''
+    p1 = [0] + p
+    for i in range(len(p)):
+        c1 = p1[i]
+        c2 = p1[i+1]
+        if c2 == 0 or c2 == c1:
+            continue
+        ret = ret + str(c2)
+    return ret
+
 
 def Accuracy(label, pred):
     global BATCH_SIZE
     global SEQ_LENGTH
 
-    hit = 0.
+    calNum = 0.0
     total = 0.
     for i in range(BATCH_SIZE):
         l = label[i]
         p = []
+
         for k in range(SEQ_LENGTH):
             p.append(np.argmax(pred[k * BATCH_SIZE + i]))
-        p = ctc_label(p)
-        if len(p) == len(l):
-            match = True
-            for k in range(len(p)):
-                if p[k] != int(l[k]):
-                    match = False
-                    break
-            if match:
-                hit += 1.0
-        total += 1.0
-    return hit / total
+        p = ctc_label_str(p)
+        l = [int(l[i]) for i in range(len(l))]
+        l = ctc_label_str(l)
+
+        if len(p) > 0 and len(l) > 0:
+            calNum = calNum + 1
+            total = total + Levenshtein.ratio(p, l)
+    if calNum > 0:
+        batch_accurace = total / calNum
+    else:
+        batch_accurace = 0.0
+    print 'batch accurace is ' + str(batch_accurace)
+    return batch_accurace
 
 if __name__ == '__main__':
 
