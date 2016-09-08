@@ -254,7 +254,8 @@ if __name__ == '__main__':
     def sym_gen(seq_len):
         return lstm_unroll(num_lstm_layer, seq_len,
                            num_hidden=num_hidden,
-                           num_label = label_num)
+                           num_label = label_num,
+                           label_size = LABEL_SIZE)
 
     init_c = [('l%d_init_c'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
     init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
