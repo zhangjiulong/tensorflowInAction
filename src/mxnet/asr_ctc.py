@@ -94,6 +94,7 @@ class FixLenCsvIter(mx.io.DataIter):
                 splits = line.split(',')
                 lenSplits = len(splits)
                 assert(lenSplits % self.frame_dim == 0)
+                assert(lenSplits < self.seq_len * self.frame_dim)
 
                 item = [float(n) for n in splits]
                 featBatchItems.append(item)
@@ -118,6 +119,7 @@ class FixLenCsvIter(mx.io.DataIter):
                 # 2. str to array
                 splits = line.split(',')
                 lenSplits = len(splits)
+                assert(lenSplits < self.label_num)
 
                 item = [float(n) for n in splits]
                 labelBatchItems.append(item)
@@ -209,7 +211,7 @@ if __name__ == '__main__':
     
     # parameters for arch
     num_hidden = config.getint('arch', 'num_hidden')
-    num_hidden_proj = config.getint('arch', 'num_hidden_proj')
+#    num_hidden_proj = config.getint('arch', 'num_hidden_proj')
     num_lstm_layer = config.getint('arch', 'num_lstm_layer')
     
     # parameters for train
@@ -279,6 +281,6 @@ if __name__ == '__main__':
 
     model.fit(X=data_train, eval_data=data_val,
               eval_metric = mx.metric.np(Accuracy),
-              batch_end_callback=mx.callback.Speedometer(batch_size, 50),epoch_end_callback = mx.callback.do_checkpoint(prefix))
+              batch_end_callback=mx.callback.Speedometer(batch_size, 5),epoch_end_callback = mx.callback.do_checkpoint(prefix))
 
     model.save(prefix)
