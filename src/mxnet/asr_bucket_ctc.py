@@ -17,12 +17,12 @@ SEQ_LENGTH = 5
 LABEL_SIZE = 11
 
 class SimpleBatch(object):
-    def __init__(self, data_names, data, label_names, label):
+    def __init__(self, data_names, data, label_names, label, bucket_key = (-1, -1)):
         self.data = data
         self.label = label
         self.data_names = data_names
         self.label_names = label_names
-
+        self.bucket_key = bucket_key # added by zhangjl 4 bucket reader it is an array, 0 is input len out is label length
         self.pad = 0
         self.index = None # TODO: what is index?
 
@@ -37,7 +37,7 @@ class SimpleBatch(object):
 class FixLenCsvIter(mx.io.DataIter):
     def __init__(self, featFile, labelFile, batch_size, \
                  init_states, seq_len = 2000, frame_dim = 120, label_num = 2000, \
-                 data_name='data', label_name='label', recordsNum2Read = -1):
+                 data_name='data', label_name='label', recordsNum2Read = -1, maxFeatureLen = 1000000):
         super(FixLenCsvIter, self).__init__()
 
         # pre-allocate with the largest bucket for better memory sharing
@@ -47,13 +47,17 @@ class FixLenCsvIter(mx.io.DataIter):
         self.featFilePtr = codecs.open(self.featFile, 'r', 'utf-8')
         self.labelFilePtr = codecs.open(self.labelFile, 'r', 'utf-8')
 
-        self.batch_size = batch_size
+        self.default_bucket_key = (seq_len, label_num) # added by zhangjl to initial default_bucket_key 
+        self.bucket_key = [seq_len, label_num] # added by zhangjl to initial default_bucket_key 
 
+        self.batch_size = batch_size
         self.init_states = init_states
         self.init_state_arrays = [mx.nd.zeros(x[1]) for x in init_states]
         self.seq_len = seq_len
         self.frame_dim = frame_dim
         self.label_num = label_num
+        self.maxFeatureLen = maxFeatureLen
+
         if recordsNum2Read > 0:
             self.recordsNum2Read = recordsNum2Read
         else:
@@ -64,8 +68,8 @@ class FixLenCsvIter(mx.io.DataIter):
         #self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
         #self.provide_label = [('label', (self.batch_size, self.default_bucket_key))]
 
-        self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
-        self.provide_label = [('label', (self.batch_size, self.label_num))]
+        self.provide_data = [('data', (self.batch_size, self.bucket_key[0]))] + init_states
+        self.provide_label = [('label', (self.batch_size, self.bucket_key[1]))]
     
 
     def __iter__(self):
@@ -79,6 +83,9 @@ class FixLenCsvIter(mx.io.DataIter):
             featMaxDimLen = -1
             labelMaxDimeLen = -1
             featBatchItems = []
+            bucket_key_0 = -1
+            bucket_key_1 = -1
+            bucket_key = [-1, -1]
             labelBatchItems = []
 
             # 1. read batch size items of feature
@@ -96,6 +103,8 @@ class FixLenCsvIter(mx.io.DataIter):
                 lenSplits = len(splits)
                 assert(lenSplits % self.frame_dim == 0)
                 assert(lenSplits < self.seq_len * self.frame_dim)
+                bucket_key_0 = max([lenSplits, bucket_key_0])
+                
 
                 item = [float(n) for n in splits]
                 featBatchItems.append(item)
@@ -103,8 +112,12 @@ class FixLenCsvIter(mx.io.DataIter):
                 # 3. judge uttrance read.
                 line4BatchRead = line4BatchRead + 1
                 if line4BatchRead >= self.batch_size:
+                    # bucket max len to bucket key and reset mid num
+                    #self.bucket_key[0] = bucket_key_0
+                    bucket_key[0] = bucket_key_0
+                    bucket_key_0 = -1
                     break
-            
+
             line4BatchRead = 0
             # 2. read batch size items of label
             for line in self.labelFilePtr:
@@ -121,30 +134,35 @@ class FixLenCsvIter(mx.io.DataIter):
                 splits = line.split(',')
                 lenSplits = len(splits)
                 assert(lenSplits < self.label_num)
+                bucket_key_1 = max([lenSplits, bucket_key_1])
 
                 item = [float(n) for n in splits]
                 labelBatchItems.append(item)
 
-                # 3. judge uttrance label read.                
+                # 3. judge uttrance label read.
                 line4BatchRead = line4BatchRead + 1
 
                 if line4BatchRead >= self.batch_size:
+                    # bucket max len to bucket key and reset mid num
+                    #self.bucket_key[1] = bucket_key_1
+                    bucket_key[1] = bucket_key_1
+                    bucket_key_1 = -1
                     break
-            
+
             # 3. feature array to np.array
-            data = np.zeros((self.batch_size, self.frame_dim * self.seq_len))
+            data = np.zeros((self.batch_size, bucket_key[0]))
             
             for i in range(line4BatchRead):
                 data[i][:len(featBatchItems[i])] = featBatchItems[i]
 
             # 4. label array to np.array
-            label = np.zeros((self.batch_size, self.label_num))
+            label = np.zeros((self.batch_size, bucket_key[1]))
             for i in range(line4BatchRead):
                 label[i][:len(labelBatchItems[i])] = labelBatchItems[i]
 
             
             # 5. fill data for iterator
-            data_all = [mx.nd.array(data)] + self.init_state_arrays    
+            data_all = [mx.nd.array(data)] + self.init_state_arrays
             data_names = ['data'] + init_state_names
 
             # 6. fill label for iterator
@@ -153,7 +171,7 @@ class FixLenCsvIter(mx.io.DataIter):
             recordsNumRead = recordsNumRead + self.batch_size
             batch_index = batch_index + 1
             
-            data_batch = SimpleBatch(data_names, data_all, label_names, label_all)
+            data_batch = SimpleBatch(data_names, data_all, label_names, label_all, tuple(bucket_key))
 
             yield data_batch
 
@@ -190,13 +208,17 @@ def Accuracy(label, pred):
     global BATCH_SIZE
     global SEQ_LENGTH
 
+    #print 'label is ' + str(len(label)) + ' h is ' + str(len(label[0]))
+    #print 'pred is ' + str(len(pred)) + ' h is ' + str(len(pred[0]))
+
     calNum = 0.0
     total = 0.
     for i in range(BATCH_SIZE):
         l = label[i]
         p = []
 
-        for k in range(SEQ_LENGTH):
+        tlen = len(pred) / BATCH_SIZE
+        for k in range(tlen):
             p.append(np.argmax(pred[k * BATCH_SIZE + i]))
         p = ctc_label_str(p)
         l = [int(l[i]) for i in range(len(l))]
@@ -262,10 +284,10 @@ if __name__ == '__main__':
     #contexts = [mx.context.gpu(0), mx.context.gpu(1)]
     contexts = parse_contexts(args)
 
-    def sym_gen(seq_len):
-        return lstm_unroll(num_lstm_layer, seq_len,
+    def sym_gen(bucket_key):
+        return lstm_unroll(num_lstm_layer, bucket_key[0],
                            num_hidden=num_hidden,
-                           num_label = label_num,
+                           num_label = bucket_key[1],
                            label_size = LABEL_SIZE)
 
     init_c = [('l%d_init_c'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
@@ -275,7 +297,7 @@ if __name__ == '__main__':
     data_train = FixLenCsvIter(train_feats, train_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read = trainRecords2Read)
     data_val = FixLenCsvIter(dev_feats, dev_labels, batch_size, init_states, seq_len, frame_dim, label_num, recordsNum2Read = testRecords2Read)
 
-    symbol = sym_gen(seq_len)
+    symbol = sym_gen
 
     model = mx.model.FeedForward(ctx=contexts,
                                  symbol=symbol,
