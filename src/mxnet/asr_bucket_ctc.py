@@ -48,7 +48,7 @@ class FixLenCsvIter(mx.io.DataIter):
         self.labelFilePtr = codecs.open(self.labelFile, 'r', 'utf-8')
 
         self.default_bucket_key = (seq_len, label_num) # added by zhangjl to initial default_bucket_key 
-        self.bucket_key = [seq_len, label_num] # added by zhangjl to initial default_bucket_key 
+        self.bucket_key = [seq_len, label_num] # added by zhangjl 
 
         self.batch_size = batch_size
         self.init_states = init_states
@@ -64,12 +64,12 @@ class FixLenCsvIter(mx.io.DataIter):
             self.recordsNum2Read = getLineNum(featFile)
         assert(self.recordsNum2Read > 0)
 
+        self.provide_data = [('data', (batch_size, self.default_bucket_key[0]))] + init_states
+        self.provide_label = [('label', (self.batch_size, self.default_bucket_key[1]))]
 
-        #self.provide_data = [('data', (batch_size, self.default_bucket_key))] + init_states
-        #self.provide_label = [('label', (self.batch_size, self.default_bucket_key))]
-
-        self.provide_data = [('data', (self.batch_size, self.bucket_key[0]))] + init_states
-        self.provide_label = [('label', (self.batch_size, self.bucket_key[1]))]
+        #self.provide_data = [('data', (self.batch_size, self.default_bucket_key[0]))] + init_states
+        #self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
+        #self.provide_label = [('label', (self.batch_size, self.label_num))]
     
 
     def __iter__(self):
