@@ -48,7 +48,6 @@ class FixLenCsvIter(mx.io.DataIter):
         self.labelFilePtr = codecs.open(self.labelFile, 'r', 'utf-8')
 
         self.default_bucket_key = (seq_len, label_num) # added by zhangjl to initial default_bucket_key 
-        self.bucket_key = [seq_len, label_num] # added by zhangjl 
 
         self.batch_size = batch_size
         self.init_states = init_states
@@ -66,11 +65,6 @@ class FixLenCsvIter(mx.io.DataIter):
 
         self.provide_data = [('data', (batch_size, self.default_bucket_key[0]))] + init_states
         self.provide_label = [('label', (self.batch_size, self.default_bucket_key[1]))]
-
-        #self.provide_data = [('data', (self.batch_size, self.default_bucket_key[0]))] + init_states
-        #self.provide_data = [('data', (self.batch_size, self.seq_len * self.frame_dim))] + init_states
-        #self.provide_label = [('label', (self.batch_size, self.label_num))]
-    
 
     def __iter__(self):
         init_state_names = [x[0] for x in self.init_states]
@@ -113,9 +107,6 @@ class FixLenCsvIter(mx.io.DataIter):
                 line4BatchRead = line4BatchRead + 1
                 if line4BatchRead >= self.batch_size:
                     # bucket max len to bucket key and reset mid num
-                    #self.bucket_key[0] = bucket_key_0
-                    bucket_key[0] = bucket_key_0
-                    bucket_key_0 = -1
                     break
 
             line4BatchRead = 0
@@ -143,22 +134,26 @@ class FixLenCsvIter(mx.io.DataIter):
                 line4BatchRead = line4BatchRead + 1
 
                 if line4BatchRead >= self.batch_size:
-                    # bucket max len to bucket key and reset mid num
-                    #self.bucket_key[1] = bucket_key_1
-                    bucket_key[1] = bucket_key_1
-                    bucket_key_1 = -1
                     break
 
             # 3. feature array to np.array
-            data = np.zeros((self.batch_size, bucket_key[0]))
+            data = np.zeros((self.batch_size, bucket_key_0))
             
             for i in range(line4BatchRead):
                 data[i][:len(featBatchItems[i])] = featBatchItems[i]
 
             # 4. label array to np.array
-            label = np.zeros((self.batch_size, bucket_key[1]))
+            label = np.zeros((self.batch_size, bucket_key_1))
             for i in range(line4BatchRead):
                 label[i][:len(labelBatchItems[i])] = labelBatchItems[i]
+
+            #self.bucket_key[0] = bucket_key_0
+            bucket_key[0] = bucket_key_0 / self.frame_dim
+            bucket_key_0 = -1
+
+            # bucket max len to bucket key and reset mid num
+            bucket_key[1] = bucket_key_1
+            bucket_key_1 = -1
 
             
             # 5. fill data for iterator
