@@ -60,7 +60,7 @@ def tower_loss(scope, train_max_size_list):
 
   losses = tf.get_collection('losses', scope)
 
-  total_loss = tf.add_n(losses, name='total_loss')
+  total_loss = tf.add_n(losses, name='total_loss') #calculat the sum of the values in the losses element by element 
 
   loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
   loss_averages_op = loss_averages.apply(losses + [total_loss])
