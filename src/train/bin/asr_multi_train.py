@@ -111,7 +111,7 @@ def train():
     for device in device_list:
       with tf.device(device):
         with tf.name_scope("tower_%d"%i) as scope:
-          loss = tower_loss(scope, train_max_size_list)
+          loss = tower_loss(scope, train_max_size_list) # use variable between 3 gpus
           tf.get_variable_scope().reuse_variables()
           grads = opt.compute_gradients(loss)
           tower_grads.append(grads)
