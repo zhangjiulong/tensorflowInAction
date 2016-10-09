@@ -11,7 +11,7 @@ from __future__ import division
 from __future__ import print_function
 
 from datetime import datetime
-import os.path
+from os import path
 import time
 
 import tensorflow as tf
@@ -21,17 +21,18 @@ import logging
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_float('gpu_memory_fraction',0.8,'gpu占用内存比例')
-tf.app.flags.DEFINE_string('train_dir',"../data/model/",'保存模型数据的文件夹')
+tf.app.flags.DEFINE_float('gpu_memory_fraction',0.9,'gpu占用内存比例')
+tf.app.flags.DEFINE_string('model_dir',"../data/model_multi/",'保存模型数据的文件夹')
 tf.app.flags.DEFINE_string('calc_devices',"/gpu:0|/gpu:1|/gpu:2",'分布式计算的所有device')
-tf.app.flags.DEFINE_integer('num_epochs_per_decay',30,'多少个epoch之后学习率下降')
+tf.app.flags.DEFINE_integer('num_epochs_per_decay',10,'多少个epoch之后学习率下降')
 tf.app.flags.DEFINE_integer('reload_model', 0, '是否reload之前训练好的模型')
+tf.app.flags.DEFINE_integer('print_loss_per_step', 10, '多少步计算后输出loss等信息')
 
 logging.basicConfig(level=logging.DEBUG,  
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',  
                     datefmt='%a, %d %b %Y %H:%M:%S',  
                     filename='./out.log',  
-                    filemode='w')  
+                    filemode='a')  
 
 def average_gradients(tower_grads):
   average_grads = []
@@ -54,13 +55,13 @@ def average_gradients(tower_grads):
 def tower_loss(scope, train_max_size_list):
   train_data = asr.distort_inputs(train_max_size_list)
 
-  train_logits, train_targets, train_seq_len = asr.rnn(train_data, train_max_size_list)
+  train_logits, train_targets, train_seq_len = asr.rnn(train_data, train_max_size_list, "train")
 
   _ = asr.loss_multi(train_logits, train_targets, train_seq_len)
 
   losses = tf.get_collection('losses', scope)
 
-  total_loss = tf.add_n(losses, name='total_loss') #calculat the sum of the values in the losses element by element 
+  total_loss = tf.add_n(losses, name='total_loss')
 
   loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
   loss_averages_op = loss_averages.apply(losses + [total_loss])
@@ -75,11 +76,15 @@ def train():
 
   graph = tf.Graph()
 
-  train_max_size_list = asr.read_data_config(FLAGS.train_maxsize_file)
-  train_num_examples  = train_max_size_list[3]
+  data_dir = FLAGS.data_dir
+  cv_maxsize_file = path.join(data_dir, FLAGS.cv_maxsize_file)
+  train_maxsize_file = path.join(data_dir, FLAGS.train_maxsize_file)
 
-  cv_max_size_list = asr.read_data_config(FLAGS.cv_maxsize_file)
-  cv_num_examples  = cv_max_size_list[3]
+  train_max_size_list = asr.read_data_config(train_maxsize_file)
+  train_num_examples  = train_max_size_list.example_number
+
+  cv_max_size_list = asr.read_data_config(cv_maxsize_file)
+  cv_num_examples  = cv_max_size_list.example_number
 
 
   batch_size          = FLAGS.batch_size
@@ -88,49 +93,47 @@ def train():
   learning_rate_decay_factor = FLAGS.learning_rate_decay_factor
   moving_average_decay = FLAGS.moving_average_decay
   
-  num_batches_per_epoch = int(train_num_examples / batch_size)
-
-  decay_steps = int(num_batches_per_epoch * num_epochs_per_decay)
 
   # 得到计算设备列表
   calc_devices = FLAGS.calc_devices
   device_list = calc_devices.split("|")
   
+  num_batches_per_epoch = int(train_num_examples / batch_size)
+  decay_steps = int(num_batches_per_epoch * num_epochs_per_decay/ len(device_list))
 
   with graph.as_default():
-    global_step = tf.Variable(0, trainable=False)
-    
+    global_step = tf.get_variable('global_step', [],initializer=tf.constant_initializer(0), trainable=False)
 
-    lr = tf.train.exponential_decay(initial_learning_rate, global_step, 
-        decay_steps, learning_rate_decay_factor, staircase=True)
-    
-    opt = tf.train.GradientDescentOptimizer(lr)
+    lr = tf.train.exponential_decay(initial_learning_rate, global_step,decay_steps, learning_rate_decay_factor, staircase=True)
+   
+    opt = tf.train.AdamOptimizer(lr)
 
     tower_grads = []
     i = 0
     for device in device_list:
       with tf.device(device):
         with tf.name_scope("tower_%d"%i) as scope:
-          loss = tower_loss(scope, train_max_size_list) # use variable between 3 gpus
+          loss = tower_loss(scope, train_max_size_list)
           tf.get_variable_scope().reuse_variables()
           grads = opt.compute_gradients(loss)
-          tower_grads.append(grads) # tower_grads will not increase bigger than 3?
-      i = i +1 
+          tower_grads.append(grads)
+      i = i +1
 
     grads = average_gradients(tower_grads)
-    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step) # why no readme
+    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
 
     variable_averages = tf.train.ExponentialMovingAverage(moving_average_decay, global_step)
     variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
     train_op = tf.group(apply_gradient_op, variables_averages_op)
+    tf.scalar_summary("train_cost", loss)
 
     # for cv
     cv_data =  asr.get_dev_data(cv_max_size_list)
     with tf.device(device_list[0]):
       with tf.name_scope("tower_0") as scope:
         tf.get_variable_scope().reuse_variables()
-        cv_logits,cv_targets,cv_seq_len = asr.rnn(cv_data, cv_max_size_list)
+        cv_logits,cv_targets,cv_seq_len = asr.rnn(cv_data, cv_max_size_list, "cv")
         cv_decode, cv_log_prob = tf.nn.ctc_beam_search_decoder(cv_logits, cv_seq_len)
         cv_error_count = tf.reduce_sum(tf.edit_distance(tf.cast(cv_decode[0], tf.int32), cv_targets, normalize=False))
         cv_label_value_shape = tf.shape(cv_targets.values)
@@ -147,13 +150,14 @@ def train():
     num_examples_per_step = FLAGS.batch_size * len(device_list)
     
     if FLAGS.reload_model == 1:
-      ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
+      ckpt = tf.train.get_checkpoint_state(FLAGS.model_dir)
       if ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
         saver.restore(session, ckpt.model_checkpoint_path)
         global_step = int(
           ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
         logging.info("从%s载入模型参数, global_step = %d",
                      ckpt.model_checkpoint_path, global_step)
+        session.run(local_init)
       else:
         logging.info("Created model with fresh parameters.")
         session.run(init)
@@ -163,7 +167,8 @@ def train():
       session.run(init)
       session.run(local_init)
 
-
+    summary_op     = tf.merge_all_summaries()
+    summary_writer = tf.train.SummaryWriter(FLAGS.model_dir, session.graph)
    
     coord = tf.train.Coordinator() 
     threads = tf.train.start_queue_runners(sess=session,coord=coord)
@@ -179,19 +184,22 @@ def train():
         step = step + 1
         start_time    = time.time()
         #_, loss_value      = session.run([apply_gradient_op, loss])
-        _, loss_value      = session.run([train_op, loss])
+        _, loss_value = session.run([train_op, loss])
         duration      = time.time() - start_time
         examples_per_sec = num_examples_per_step / duration
         sec_per_batch = float(duration/ len(device_list))
 
-        if step % 10 == 0:
+        if step % 5 == 1:
+          summary_str = session.run(summary_op)
+          summary_writer.add_summary(summary_str, step)
+        if step % FLAGS.print_loss_per_step == 0:
           format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f sec/batch)')
           print(format_str % (datetime.now(), step, loss_value, examples_per_sec, sec_per_batch))
           logging.info(format_str % (datetime.now(), step, loss_value, examples_per_sec, sec_per_batch))
 
         if step % train_num_batches_per_epoch == 0 :
           #save model
-          saver.save(session, FLAGS.train_dir + "model.ckpt", global_step = step)
+          saver.save(session, FLAGS.model_dir + "model.ckpt", global_step = step)
           logging.info("保存模型参数.")
           
           epoch = epoch + 1
@@ -220,3 +228,5 @@ def main(argv=None):
 
 if __name__ == '__main__':
   tf.app.run()
+
+
