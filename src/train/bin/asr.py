@@ -6,23 +6,23 @@ import tensorflow as tf
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_integer('batch_size', 128, """batch size""")
-tf.app.flags.DEFINE_string('data_dir', '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata/',
+tf.app.flags.DEFINE_string('data_dir', '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/200h',
                            """train data dir""")
 
 tf.app.flags.DEFINE_integer('train_file_number', 10, """Train file number""")
 
 tf.app.flags.DEFINE_string("train_maxsize_file",
-                           "/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata/train.maxsize",
+                           "/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/200h/train.maxsize",
                            """记录每个小文件的每行的最大的值的个数""")
 
-tf.app.flags.DEFINE_string('eval_file', '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata/cv.eesen.0',
+tf.app.flags.DEFINE_string('eval_file', '/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/200h/cv.eesen.0',
                            """cv的样本文件""")
 
-tf.app.flags.DEFINE_string('cv_maxsize_file', "/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/110h_traindata/cv.maxsize",
+tf.app.flags.DEFINE_string('cv_maxsize_file', "/asrDataCenter/dataCenter/asr/td/vx/binaryFormat/200h/cv.maxsize",
                            """记录每个小文件的每行的最大的值的个数""")
 
 tf.app.flags.DEFINE_integer('feature_cols', 120, """一个帧的包含的特征的个数""")
-tf.app.flags.DEFINE_integer('num_layers', 1, """lstm网络的lstm的层数""")
+tf.app.flags.DEFINE_integer('num_layers', 5, """lstm网络的lstm的层数""")
 tf.app.flags.DEFINE_integer('num_hidden', 100, """lstm网络每层的节点数""")
 tf.app.flags.DEFINE_integer('label_count', 89, """label的个数+2""")
 tf.app.flags.DEFINE_integer('num_epochs', 200, """迭代的次数""")
@@ -257,10 +257,10 @@ def rnn(inputs, data_config):
                         [batch_size, data_config[2]])
 
   with tf.device('/cpu:0'):
-    cell_fw  = tf.nn.rnn_cell.LSTMCell(num_hidden, state_is_tuple=True)
+    cell_fw  = tf.nn.rnn_cell.LSTMCell(num_hidden, state_is_tuple=True) # reuseable do not affect?
     stack_fw = tf.nn.rnn_cell.MultiRNNCell([cell_fw] * num_layers,
                                         state_is_tuple=True)
-    cell_bw  = tf.nn.rnn_cell.LSTMCell(num_hidden, state_is_tuple=True)
+    cell_bw  = tf.nn.rnn_cell.LSTMCell(num_hidden, state_is_tuple=True) # reuseable do not affect?
     stack_bw = tf.nn.rnn_cell.MultiRNNCell([cell_bw] * num_layers,
                                         state_is_tuple=True)
 
@@ -337,7 +337,7 @@ def build_ctc(ctc_input, targets, seq_len):
     (最后的平均损失值, 训练所用的tf.op)
 
   """
-  init_learning_rate = FLAGS.initial_learning_rate
+  init_learning_rate = FLAGS.initial_learning_rate  # ok or not?
   example_losses = tf.nn.ctc_loss(ctc_input, targets, seq_len)
   cost = tf.reduce_mean(example_losses)
   optimizer = tf.train.AdagradOptimizer(init_learning_rate, 0.9)

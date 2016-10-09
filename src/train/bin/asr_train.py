@@ -65,7 +65,7 @@ def train():
     else:
       logging.info("Created model with fresh parameters.")
       session.run(init)
-      session.run(local_init)
+      session.run(local_init) # diff between local_init and init
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=session, coord=coord)

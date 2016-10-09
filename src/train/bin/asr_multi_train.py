@@ -114,11 +114,11 @@ def train():
           loss = tower_loss(scope, train_max_size_list) # use variable between 3 gpus
           tf.get_variable_scope().reuse_variables()
           grads = opt.compute_gradients(loss)
-          tower_grads.append(grads)
-      i = i +1
+          tower_grads.append(grads) # tower_grads will not increase bigger than 3?
+      i = i +1 
 
     grads = average_gradients(tower_grads)
-    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step) # why no readme
 
     variable_averages = tf.train.ExponentialMovingAverage(moving_average_decay, global_step)
     variables_averages_op = variable_averages.apply(tf.trainable_variables())
