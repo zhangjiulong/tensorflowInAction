@@ -47,6 +47,9 @@ def lstm(num_hidden, indata, prev_state, param, seqidx, layeridx, dropout=0.):
 # to allow this situation to work properly
 def lstm_unroll(num_lstm_layer, seq_len,
                 num_hidden, num_label, label_size=11):
+    print 'seq_lenis' + str(seq_len)
+    seq_len = seq_len / 120
+    print 'seq_lenis' + str(seq_len)
     param_cells = []
     last_states = []
     for i in range(num_lstm_layer):

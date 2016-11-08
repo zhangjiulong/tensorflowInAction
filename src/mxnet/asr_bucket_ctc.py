@@ -147,8 +147,8 @@ class FixLenCsvIter(mx.io.DataIter):
             for i in range(line4BatchRead):
                 label[i][:len(labelBatchItems[i])] = labelBatchItems[i]
 
-            #self.bucket_key[0] = bucket_key_0
-            bucket_key[0] = bucket_key_0 / self.frame_dim
+            bucket_key[0] = bucket_key_0
+            #bucket_key[0] = bucket_key_0 / self.frame_dim
             bucket_key_0 = -1
 
             # bucket max len to bucket key and reset mid num
